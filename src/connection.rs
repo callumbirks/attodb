@@ -1,73 +1,68 @@
+use std::io::Cursor;
+
+use bytes::{Buf, BytesMut};
 use tokio::{
-    io::{self, AsyncReadExt, AsyncWriteExt},
+    io::{self, AsyncReadExt, AsyncWriteExt, BufWriter},
     net::TcpStream,
 };
 
+use crate::{
+    Result,
+    message::{self, Message},
+};
+
 pub struct Connection {
-    socket: TcpStream,
+    stream: BufWriter<TcpStream>,
+    buffer: BytesMut,
 }
 
 #[derive(Debug)]
 pub enum Error {
     InvalidFrame,
-    InvalidUtf8,
     Io(io::Error),
-}
-
-#[derive(Debug)]
-pub enum Command {
-    Get(String),
-    Set(String, String),
-}
-
-impl Command {
-    pub fn parse(bytes: &[u8]) -> Result<Command, Error> {
-        let string = match str::from_utf8(bytes) {
-            Ok(string) => string,
-            Err(_) => return Err(Error::InvalidUtf8),
-        };
-        let words: Vec<&str> = string.split(|c| c == ' ').collect();
-        if words.is_empty() {
-            return Err(Error::InvalidFrame);
-        }
-        let command_type = words[0].to_ascii_lowercase();
-        match command_type.as_str() {
-            "get" => {
-                if words.len() < 2 {
-                    return Err(Error::InvalidFrame);
-                }
-                let key = words[1].trim_end_matches(|c| c == '\n').to_string();
-                Ok(Command::Get(key))
-            }
-            "set" => {
-                if words.len() < 3 {
-                    return Err(Error::InvalidFrame);
-                }
-                let key = words[1].to_string();
-                let val = words[2].trim_end_matches(|c| c == '\n').to_string();
-                Ok(Command::Set(key, val))
-            }
-            _ => Err(Error::InvalidFrame),
-        }
-    }
 }
 
 impl Connection {
     pub fn new(socket: TcpStream) -> Connection {
-        Connection { socket }
+        Connection {
+            stream: BufWriter::new(socket),
+            buffer: BytesMut::with_capacity(4 * 1024),
+        }
     }
 
-    pub async fn read_command(&mut self) -> Result<Command, Error> {
-        let mut buf = [0u8; 256];
-        let count = match self.socket.read(&mut buf).await {
-            Ok(count) => count,
-            Err(err) => return Err(Error::Io(err)),
-        };
-        let bytes = &buf[..count];
-        Command::parse(bytes)
+    pub async fn read_message(&mut self) -> Result<Option<Message>> {
+        loop {
+            if let Some(message) = self.parse_message().await? {
+                return Ok(Some(message));
+            }
+
+            if 0 == self.stream.read_buf(&mut self.buffer).await? {
+                if self.buffer.is_empty() {
+                    return Ok(None);
+                } else {
+                    return Err(crate::Error::ConnectionReset);
+                }
+            }
+        }
     }
 
-    pub async fn respond(&mut self, response: &str) -> io::Result<()> {
-        self.socket.write_all(response.as_bytes()).await
+    async fn parse_message(&mut self) -> Result<Option<Message>> {
+        let mut buf = Cursor::new(&self.buffer[..]);
+
+        if message::is_complete(&mut buf) {
+            let len = buf.position() as usize;
+            buf.set_position(0);
+            let message = Message::parse(&mut buf).await?;
+            self.buffer.advance(len);
+            Ok(Some(message))
+        } else {
+            Ok(None)
+        }
+    }
+
+    pub async fn respond(&mut self, response: Message) -> crate::Result<()> {
+        response.write(&mut self.stream).await?;
+        self.stream.flush().await?;
+        Ok(())
     }
 }
