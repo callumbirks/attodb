@@ -49,6 +49,9 @@ async fn process(db: Arc<RwLock<BTreeMap<String, String>>>, socket: TcpStream) -
     let message = connection.read_message().await;
     println!("Received message: {:?}", &message);
     match message {
+        Ok(Some(Message::Ping)) => {
+            connection.respond(Message::Ok).await?;
+        }
         Ok(Some(Message::Command(Command::Get(get)))) => {
             let db = db.read().await;
             match db.get(&get.key) {

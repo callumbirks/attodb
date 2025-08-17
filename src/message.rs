@@ -25,12 +25,13 @@ use std::io::Cursor;
 
 #[repr(u8)]
 pub enum Variant {
-    Command = 0,
-    Ok = 1,
-    Null = 2,
-    Err = 3,
-    Int = 4,
-    Text = 5,
+    Ping = 0,
+    Command = 1,
+    Ok = 2,
+    Null = 3,
+    Err = 4,
+    Int = 5,
+    Text = 6,
 }
 
 #[derive(Debug)]
@@ -45,12 +46,13 @@ impl TryFrom<u8> for Variant {
 
     fn try_from(value: u8) -> core::result::Result<Self, Self::Error> {
         match value {
-            0 => Ok(Variant::Command),
-            1 => Ok(Variant::Ok),
-            2 => Ok(Variant::Null),
-            3 => Ok(Variant::Err),
-            4 => Ok(Variant::Int),
-            5 => Ok(Variant::Text),
+            0 => Ok(Variant::Ping),
+            1 => Ok(Variant::Command),
+            2 => Ok(Variant::Ok),
+            3 => Ok(Variant::Null),
+            4 => Ok(Variant::Err),
+            5 => Ok(Variant::Int),
+            6 => Ok(Variant::Text),
             _ => Err(Error::UnknownMessageType(value)),
         }
     }
@@ -58,6 +60,7 @@ impl TryFrom<u8> for Variant {
 
 #[derive(Debug)]
 pub enum Message {
+    Ping,
     Command(Command),
     Ok,
     Null,
@@ -99,6 +102,7 @@ impl Message {
             Err(e) => return Err(crate::Error::ParseMessage(e)),
         };
         match variant {
+            Variant::Ping => Ok(Message::Ping),
             Variant::Command => Command::parse(&mut line).await.map(Message::Command),
             Variant::Ok => Ok(Message::Ok),
             Variant::Null => Ok(Message::Null),
@@ -113,6 +117,9 @@ impl Message {
         buf: &mut W,
     ) -> crate::Result<()> {
         match self {
+            Message::Ping => {
+                buf.write_u8(Variant::Ping as u8).await?;
+            }
             Message::Command(command) => {
                 buf.write_u8(Variant::Command as u8).await?;
                 command.write(buf).await?;
