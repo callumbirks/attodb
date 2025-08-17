@@ -24,6 +24,7 @@ impl Get {
     }
 
     pub async fn write<W: AsyncWriteExt + Unpin>(&self, buf: &mut W) -> crate::Result<()> {
+        buf.write_u8(1).await?;
         buf.write_u16(self.key.len() as u16).await?;
         buf.write_all(self.key.as_bytes()).await?;
         Ok(())

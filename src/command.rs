@@ -2,13 +2,13 @@ use std::io::Cursor;
 
 use tokio::io::AsyncReadExt;
 
-use crate::{
-    Result,
-    command::{get::Get, set::Set},
-};
+use crate::Result;
 
 mod get;
 mod set;
+
+pub use get::Get;
+pub use set::Set;
 
 #[derive(Debug)]
 pub enum Command {

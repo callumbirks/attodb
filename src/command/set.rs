@@ -11,7 +11,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Set {
     pub key: String,
-    pub val: String,
+    pub value: String,
 }
 
 impl Set {
@@ -22,12 +22,13 @@ impl Set {
         }
         let key = message::read_string(src).await?;
         let val = message::read_string(src).await?;
-        Ok(Set { key, val })
+        Ok(Set { key, value: val })
     }
 
     pub async fn write<W: AsyncWriteExt + Unpin>(&self, buf: &mut W) -> crate::Result<()> {
-        buf.write_u16(self.key.len() as u16).await?;
-        buf.write_all(self.key.as_bytes()).await?;
+        buf.write_u8(2).await?;
+        message::write_string(buf, &self.key).await?;
+        message::write_string(buf, &self.value).await?;
         Ok(())
     }
 }

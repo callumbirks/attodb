@@ -60,8 +60,8 @@ impl Connection {
         }
     }
 
-    pub async fn respond(&mut self, response: Message) -> crate::Result<()> {
-        response.write(&mut self.stream).await?;
+    pub async fn write_message(&mut self, message: Message) -> crate::Result<()> {
+        message.write(&mut self.stream).await?;
         self.stream.flush().await?;
         Ok(())
     }

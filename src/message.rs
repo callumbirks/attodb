@@ -143,8 +143,7 @@ impl Message {
                 write_string(buf, text).await?;
             }
         }
-        buf.write_u8(b'\r').await?;
-        buf.write_u8(b'\n').await?;
+        buf.write_all(b"\r\n").await?;
         Ok(())
     }
 }
