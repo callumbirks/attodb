@@ -1,15 +1,13 @@
-use std::{collections::BTreeMap, sync::Arc};
+use std::sync::Arc;
 
-use attodb::{command::Command, connection::Connection, message::Message};
-use tokio::{
-    net::{TcpListener, TcpStream},
-    sync::RwLock,
-};
+use attodb::{command::Command, connection::Connection, message::Message, value::Value};
+use dashmap::DashMap;
+use tokio::net::{TcpListener, TcpStream};
 
 #[tokio::main]
 async fn main() {
     let listener = TcpListener::bind("127.0.0.1:7676").await.unwrap();
-    let db = Arc::new(RwLock::new(BTreeMap::<String, String>::new()));
+    let db: Arc<DashMap<String, Vec<u8>>> = Arc::new(DashMap::new());
 
     loop {
         let (socket, _) = listener.accept().await.unwrap();
@@ -20,10 +18,7 @@ async fn main() {
     }
 }
 
-async fn process(
-    db: Arc<RwLock<BTreeMap<String, String>>>,
-    socket: TcpStream,
-) -> attodb::Result<()> {
+async fn process(db: Arc<DashMap<String, Vec<u8>>>, socket: TcpStream) -> attodb::Result<()> {
     let mut connection = Connection::new(socket);
     let message = connection.read_message().await;
     println!("Received message: {:?}", &message);
@@ -31,32 +26,40 @@ async fn process(
         Ok(Some(Message::Ping)) => {
             connection.write_message(Message::Ok).await?;
         }
-        Ok(Some(Message::Command(Command::Get(get)))) => {
-            let db = db.read().await;
-            match db.get(&get.key) {
-                Some(val) => connection.write_message(Message::Text(val.clone())).await?,
-                None => connection.write_message(Message::Null).await?,
+        Ok(Some(Message::Command(Command::Get(get)))) => match db.get(&get.key) {
+            Some(val) => {
+                let value = Value::parse(val.as_ref());
+                match value {
+                    Ok(Value::Int(int)) => connection.write_message(Message::Int(int)).await?,
+                    Ok(Value::String(string)) => {
+                        connection
+                            .write_message(Message::Text(string.to_string()))
+                            .await?
+                    }
+                    Err(e) => {
+                        connection
+                            .write_message(Message::Err("internal encoding error".to_string()))
+                            .await?
+                    }
+                }
             }
-        }
+            None => connection.write_message(Message::Null).await?,
+        },
         Ok(Some(Message::Command(Command::Set(set)))) => {
-            let mut db = db.write().await;
             db.insert(set.key, set.value);
             connection.write_message(Message::Ok).await?;
         }
         Ok(Some(Message::Command(Command::Incr(incr)))) => {
-            let mut db = db.write().await;
             let e = db
                 .entry(incr.key)
                 .and_modify(|e| {
-                    if let Ok(num) = e.parse::<i32>() {
-                        e.clear();
-                        let string = (num + 1).to_string();
-                        e.push_str(&string);
+                    if let Ok(Value::Int(int)) = Value::parse(&e) {
+                        Value::Int(int + 1).write(e);
                     }
                 })
-                .or_insert_with(|| "1".to_string());
-            if let Ok(num) = e.parse::<i32>() {
-                connection.write_message(Message::Int(num)).await?;
+                .or_insert_with(|| Value::Int(1).into_vec());
+            if let Ok(Value::Int(int)) = Value::parse(&e) {
+                connection.write_message(Message::Int(int)).await?;
             } else {
                 connection
                     .write_message(Message::Err("not a number".to_string()))

@@ -1,4 +1,4 @@
-use attodb::{DEFAULT_PORT, connection::Connection, message::Message};
+use attodb::{DEFAULT_PORT, connection::Connection, message::Message, value::Value};
 use clap::{Parser, Subcommand};
 use tokio::net::TcpStream;
 
@@ -40,7 +40,10 @@ async fn main() -> attodb::Result<()> {
         Command::Set { key, value } => {
             connection
                 .write_message(Message::Command(attodb::Command::Set(
-                    attodb::command::Set { key, value },
+                    attodb::command::Set {
+                        key,
+                        value: Value::String(&value).into_vec(),
+                    },
                 )))
                 .await?
         }

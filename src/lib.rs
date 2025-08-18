@@ -4,6 +4,7 @@ use tokio::io::{self};
 pub mod command;
 pub mod connection;
 pub mod message;
+pub mod value;
 
 pub use command::Command;
 pub use connection::Connection;
@@ -23,6 +24,8 @@ pub enum Error {
     ParseMessage(message::Error),
     #[error("failed to parse command: {0:?}")]
     ParseCommand(command::Error),
+    #[error("failed to parse value: {0:?}")]
+    ParseValue(value::Error),
     #[error("cannot apply numerical command to non-number")]
     NotANumber,
 }

@@ -11,7 +11,7 @@ use crate::{
 #[derive(Debug)]
 pub struct Set {
     pub key: String,
-    pub value: String,
+    pub value: Vec<u8>,
 }
 
 impl Set {
@@ -21,14 +21,14 @@ impl Set {
             return Err(crate::Error::ParseCommand(Error::WrongNumberArguments));
         }
         let key = message::read_string(src).await?;
-        let val = message::read_string(src).await?;
-        Ok(Set { key, value: val })
+        let value = message::read_bytes(src).await?;
+        Ok(Set { key, value })
     }
 
     pub async fn write<W: AsyncWriteExt + Unpin>(&self, buf: &mut W) -> crate::Result<()> {
         buf.write_u8(2).await?;
         message::write_string(buf, &self.key).await?;
-        message::write_string(buf, &self.value).await?;
+        message::write_bytes(buf, &self.value).await?;
         Ok(())
     }
 }

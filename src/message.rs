@@ -70,19 +70,28 @@ pub enum Message {
 }
 
 pub async fn read_string(src: &mut Cursor<&[u8]>) -> crate::Result<String> {
-    let count = src.read_u16().await?;
-    let mut buf = vec![0_u8; count as usize];
-    src.read_exact(buf.as_mut_slice()).await?;
+    let buf = read_bytes(src).await?;
     match String::from_utf8(buf) {
         Ok(s) => Ok(s),
         Err(_) => Err(crate::Error::InvalidUtf8),
     }
 }
 
+pub async fn read_bytes(src: &mut Cursor<&[u8]>) -> crate::Result<Vec<u8>> {
+    let count = src.read_u16().await?;
+    let mut buf = vec![0_u8; count as usize];
+    src.read_exact(buf.as_mut_slice()).await?;
+    Ok(buf)
+}
+
 pub async fn write_string<W: AsyncWriteExt + Unpin>(buf: &mut W, value: &str) -> crate::Result<()> {
+    write_bytes(buf, value.as_bytes()).await
+}
+
+pub async fn write_bytes<W: AsyncWriteExt + Unpin>(buf: &mut W, value: &[u8]) -> crate::Result<()> {
     // TODO: Validate length
     buf.write_u16(value.len() as u16).await?;
-    buf.write_all(value.as_bytes()).await?;
+    buf.write_all(value).await?;
     Ok(())
 }
 
