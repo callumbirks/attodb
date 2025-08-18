@@ -23,6 +23,8 @@ pub enum Error {
     ParseMessage(message::Error),
     #[error("failed to parse command: {0:?}")]
     ParseCommand(command::Error),
+    #[error("cannot apply numerical command to non-number")]
+    NotANumber,
 }
 
 pub type Result<T> = core::result::Result<T, Error>;

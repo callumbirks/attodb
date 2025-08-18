@@ -19,6 +19,7 @@ enum Command {
     Ping,
     Get { key: String },
     Set { key: String, value: String },
+    Incr { key: String },
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -40,6 +41,13 @@ async fn main() -> attodb::Result<()> {
             connection
                 .write_message(Message::Command(attodb::Command::Set(
                     attodb::command::Set { key, value },
+                )))
+                .await?
+        }
+        Command::Incr { key } => {
+            connection
+                .write_message(Message::Command(attodb::Command::Incr(
+                    attodb::command::Incr { key },
                 )))
                 .await?
         }

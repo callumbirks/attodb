@@ -7,10 +7,10 @@ Utilises a simple command-based system, similar to Redis.
 Communication is via a custom binary format, described in more detail below.
 
 ## Commands (Planned / Implemented)
-- [ ] PING
+- [x] PING
 - [x] GET
 - [x] SET
-- [ ] INCR
+- [x] INCR
 
 ## Binary Format
 

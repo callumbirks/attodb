@@ -5,21 +5,25 @@ use tokio::io::AsyncReadExt;
 use crate::Result;
 
 mod get;
+mod incr;
 mod set;
 
 pub use get::Get;
+pub use incr::Incr;
 pub use set::Set;
 
 #[derive(Debug)]
 pub enum Command {
     Get(Get),
     Set(Set),
+    Incr(Incr),
 }
 
 #[repr(u8)]
 pub enum Variant {
     Get = 0,
     Set = 1,
+    Incr = 2,
 }
 
 #[derive(Debug)]
@@ -35,6 +39,7 @@ impl TryFrom<u8> for Variant {
         match value {
             0 => Ok(Variant::Get),
             1 => Ok(Variant::Set),
+            2 => Ok(Variant::Incr),
             _ => Err(Error::UnknownCommandType(value)),
         }
     }
@@ -50,6 +55,7 @@ impl Command {
         match variant {
             Variant::Get => Get::parse(src).await.map(Command::Get),
             Variant::Set => Set::parse(src).await.map(Command::Set),
+            Variant::Incr => Incr::parse(src).await.map(Command::Incr),
         }
     }
 
@@ -63,9 +69,14 @@ impl Command {
                 get.write(buf).await?;
                 Ok(())
             }
-            Self::Set(set) => {
+            Command::Set(set) => {
                 buf.write_u8(Variant::Set as u8).await?;
                 set.write(buf).await?;
+                Ok(())
+            }
+            Command::Incr(incr) => {
+                buf.write_u8(Variant::Incr as u8).await?;
+                incr.write(buf).await?;
                 Ok(())
             }
         }

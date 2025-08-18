@@ -43,6 +43,26 @@ async fn process(
             db.insert(set.key, set.value);
             connection.write_message(Message::Ok).await?;
         }
+        Ok(Some(Message::Command(Command::Incr(incr)))) => {
+            let mut db = db.write().await;
+            let e = db
+                .entry(incr.key)
+                .and_modify(|e| {
+                    if let Ok(num) = e.parse::<i32>() {
+                        e.clear();
+                        let string = (num + 1).to_string();
+                        e.push_str(&string);
+                    }
+                })
+                .or_insert_with(|| "1".to_string());
+            if let Ok(num) = e.parse::<i32>() {
+                connection.write_message(Message::Int(num)).await?;
+            } else {
+                connection
+                    .write_message(Message::Err("not a number".to_string()))
+                    .await?;
+            }
+        }
         // None means the connection closed gracefully
         Ok(None) => {}
         Err(err) => match err {
