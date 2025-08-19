@@ -1,8 +1,9 @@
-use std::io::Cursor;
+use std::{io::Cursor, sync::Arc};
 
+use dashmap::DashMap;
 use tokio::io::AsyncWriteExt;
 
-use crate::{command, message};
+use crate::{Message, command, message, value::Value};
 
 #[derive(Debug)]
 pub struct Incr {
@@ -10,6 +11,22 @@ pub struct Incr {
 }
 
 impl Incr {
+    pub fn perform(self, db: Arc<DashMap<String, Vec<u8>>>) -> crate::Result<Message> {
+        let e = db
+            .entry(self.key)
+            .and_modify(|e| {
+                if let Ok(Value::Int(int)) = Value::parse(&e) {
+                    Value::Int(int + 1).write(e);
+                }
+            })
+            .or_insert_with(|| Value::Int(1).into_vec());
+        if let Ok(Value::Int(int)) = Value::parse(&e) {
+            Ok(Message::Int(int))
+        } else {
+            Ok(Message::Err("not a number".to_string()))
+        }
+    }
+
     pub async fn parse(src: &mut Cursor<&[u8]>) -> crate::Result<Incr> {
         let count = command::read_count(src).await?;
         if count != 1 {

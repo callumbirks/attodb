@@ -1,11 +1,13 @@
-use std::io::Cursor;
+use std::{io::Cursor, sync::Arc};
 
+use dashmap::DashMap;
 use tokio::io::AsyncWriteExt;
 
 use crate::{
-    Result,
+    Message, Result,
     command::{self, Error},
     message,
+    value::Value,
 };
 
 #[derive(Debug)]
@@ -15,6 +17,15 @@ pub struct Set {
 }
 
 impl Set {
+    pub fn perform(self, db: Arc<DashMap<String, Vec<u8>>>) -> crate::Result<Message> {
+        if Value::parse(&self.value).is_err() {
+            Ok(Message::Err("invalid value".to_string()))
+        } else {
+            db.insert(self.key, self.value);
+            Ok(Message::Ok)
+        }
+    }
+
     pub async fn parse(src: &mut Cursor<&[u8]>) -> Result<Set> {
         let count = command::read_count(src).await?;
         if count != 2 {
