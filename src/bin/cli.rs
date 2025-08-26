@@ -20,6 +20,7 @@ enum Command {
     Get { key: String },
     Set { key: String, value: String },
     Incr { key: String },
+    Del { key: String },
 }
 
 #[tokio::main(flavor = "current_thread")]
@@ -42,7 +43,7 @@ async fn main() -> attodb::Result<()> {
                 .write_message(Message::Command(attodb::Command::Set(
                     attodb::command::Set {
                         key,
-                        value: Value::String(&value).into_vec(),
+                        value: input_to_value(&value).into_vec(),
                     },
                 )))
                 .await?
@@ -54,6 +55,13 @@ async fn main() -> attodb::Result<()> {
                 )))
                 .await?
         }
+        Command::Del { key } => {
+            connection
+                .write_message(Message::Command(attodb::Command::Del(
+                    attodb::command::Del { key },
+                )))
+                .await?
+        }
     }
     match connection.read_message().await? {
         Some(message) => {
@@ -62,4 +70,12 @@ async fn main() -> attodb::Result<()> {
         None => {}
     }
     Ok(())
+}
+
+fn input_to_value<'a>(input: &'a str) -> Value<'a> {
+    if let Ok(num) = input.parse::<i32>() {
+        Value::Int(num)
+    } else {
+        Value::String(input)
+    }
 }

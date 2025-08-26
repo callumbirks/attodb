@@ -38,6 +38,10 @@ async fn process(db: Arc<DashMap<String, Vec<u8>>>, socket: TcpStream) -> attodb
             let message = incr.perform(db)?;
             connection.write_message(message).await?;
         }
+        Ok(Some(Message::Command(Command::Del(del)))) => {
+            let message = del.perform(db)?;
+            connection.write_message(message).await?;
+        }
         // None means the connection closed gracefully
         Ok(None) => {}
         Err(err) => match err {
